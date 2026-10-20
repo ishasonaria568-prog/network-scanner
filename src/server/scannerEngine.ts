@@ -12,9 +12,10 @@ import * as net from 'net';
 export interface PortFinding {
   port: number;
   service: string;
-  state: 'open' | 'closed' | 'filtered';
+  state: 'open' | 'closed' | 'timeout' | 'error' | 'not_scanned';
   banner?: string | null;
   responseTimeMs?: number | null;
+  errorMessage?: string | null;
 }
 
 export interface DiscoveredDevice {
@@ -24,6 +25,7 @@ export interface DiscoveredDevice {
   vendor: string | null;
   openPorts: number[];
   portDetails: PortFinding[];
+  portScanStatus?: string;
   osMatch: string;
   evidence: string | null;
   latencyMs: number | null;
@@ -38,11 +40,14 @@ export interface ScanReport {
   status: 'running' | 'completed' | 'partial' | 'failed';
   durationSeconds: number;
   totalHosts: number;
+  requestedPorts?: number[];
+  timeoutSec?: number;
   discoveredDevices: DiscoveredDevice[];
   errors: string[];
 }
 
 export const COMMON_SERVICES: Record<number, string> = {
+  20: 'FTP-Data',
   21: 'FTP',
   22: 'SSH',
   23: 'Telnet',
@@ -114,7 +119,11 @@ export function validateTargetNetwork(target: string, maxHosts = 512): { network
     throw new Error(`Target ${ip} is a restricted cloud metadata address.`);
   }
 
-  const ipNum = (parseInt(octets[0]) << 24) | (parseInt(octets[1]) << 16) | (parseInt(octets[2]) << 8) | parseInt(octets[3]);
+  const ipNum =
+    (parseInt(octets[0]) << 24) |
+    (parseInt(octets[1]) << 16) |
+    (parseInt(octets[2]) << 8) |
+    parseInt(octets[3]);
   const mask = prefix === 0 ? 0 : (~0 << (32 - prefix)) >>> 0;
   const baseIp = (ipNum & mask) >>> 0;
   const totalAddresses = prefix === 32 ? 1 : Math.pow(2, 32 - prefix);
@@ -196,11 +205,13 @@ export async function resolveReverseDns(ip: string): Promise<string | null> {
 export function probeTcpPort(
   ip: string,
   port: number,
-  timeoutMs = 1200
-): Promise<{ isOpen: boolean; latencyMs: number | null; banner: string | null }> {
+  timeoutMs = 1200,
+  grabBanner = false
+): Promise<PortFinding> {
   return new Promise((resolve) => {
     const socket = new net.Socket();
     const startTime = Date.now();
+    const service = COMMON_SERVICES[port] || 'unknown';
     let banner: string | null = null;
     let isResolved = false;
 
@@ -216,43 +227,100 @@ export function probeTcpPort(
     socket.connect(port, ip, () => {
       const latency = Date.now() - startTime;
 
-      // Attempt quick non-destructive banner read
-      if (port === 80 || port === 8080) {
+      if (grabBanner) {
         try {
-          socket.write('HEAD / HTTP/1.0\r\nHost: target\r\n\r\n');
+          if (port === 80 || port === 8080) {
+            socket.write('HEAD / HTTP/1.0\r\nHost: target\r\n\r\n');
+          }
         } catch {
-          // Ignore
+          // Ignore write errors
         }
-      }
 
-      socket.once('data', (data) => {
-        try {
-          const text = data.toString('utf8', 0, 150).replace(/[^\x20-\x7E\r\n]/g, '').trim();
-          banner = text.split('\n')[0].substring(0, 100);
-        } catch {
-          // Ignore
-        }
-        cleanup();
-        resolve({ isOpen: true, latencyMs: latency, banner });
-      });
-
-      // If no banner within 250ms of connect, resolve open anyway
-      setTimeout(() => {
-        if (!isResolved) {
+        socket.once('data', (data) => {
+          try {
+            const text = data.toString('utf8', 0, 150).replace(/[^\x20-\x7E\r\n]/g, '').trim();
+            banner = text.split('\n')[0].substring(0, 100);
+          } catch {
+            // Ignore
+          }
           cleanup();
-          resolve({ isOpen: true, latencyMs: latency, banner });
-        }
-      }, 250);
+          resolve({
+            port,
+            service,
+            state: 'open',
+            responseTimeMs: latency,
+            banner,
+          });
+        });
+
+        // If no banner within 250ms of connect, resolve open anyway
+        setTimeout(() => {
+          if (!isResolved) {
+            cleanup();
+            resolve({
+              port,
+              service,
+              state: 'open',
+              responseTimeMs: latency,
+              banner,
+            });
+          }
+        }, 250);
+      } else {
+        cleanup();
+        resolve({
+          port,
+          service,
+          state: 'open',
+          responseTimeMs: latency,
+          banner: null,
+        });
+      }
     });
 
     socket.on('timeout', () => {
       cleanup();
-      resolve({ isOpen: false, latencyMs: null, banner: null });
+      resolve({
+        port,
+        service,
+        state: 'timeout',
+        responseTimeMs: null,
+      });
     });
 
-    socket.on('error', () => {
+    socket.on('error', (err: any) => {
       cleanup();
-      resolve({ isOpen: false, latencyMs: null, banner: null });
+      const code = err.code;
+      if (code === 'ECONNREFUSED') {
+        const latency = Date.now() - startTime;
+        resolve({
+          port,
+          service,
+          state: 'closed',
+          responseTimeMs: latency,
+        });
+      } else if (code === 'ETIMEDOUT') {
+        resolve({
+          port,
+          service,
+          state: 'timeout',
+          responseTimeMs: null,
+        });
+      } else if (code === 'EHOSTUNREACH' || code === 'ENETUNREACH') {
+        resolve({
+          port,
+          service,
+          state: 'error',
+          errorMessage: 'Host or network unreachable',
+        });
+      } else {
+        resolve({
+          port,
+          service,
+          state: 'error',
+          errorMessage: err.message || code,
+        });
+      }
     });
   });
 }
@@ -280,17 +348,43 @@ export function evaluateOsSignature(openPorts: number[], banners: string[] = [])
 }
 
 export function generateCsvExport(report: ScanReport): string {
-  const headers = ['IP Address', 'MAC Address', 'Vendor', 'Hostname', 'Open Ports', 'Estimated OS', 'Evidence', 'Latency (ms)'];
-  const rows = report.discoveredDevices.map((d) => [
-    `"${d.ipAddress}"`,
-    `"${d.macAddress || 'N/A (L3 only)'}"`,
-    `"${d.vendor || 'Unknown'}"`,
-    `"${d.hostname || 'Unresolved'}"`,
-    `"${d.openPorts.length > 0 ? d.openPorts.join(',') : 'None detected'}"`,
-    `"${d.osMatch}"`,
-    `"${(d.evidence || '').replace(/"/g, '""')}"`,
-    `"${d.latencyMs !== null ? d.latencyMs : ''}"`,
-  ]);
+  const headers = [
+    'IP Address',
+    'MAC Address',
+    'Vendor',
+    'Hostname',
+    'Open Ports',
+    'Port Status',
+    'Estimated OS',
+    'Evidence',
+    'Latency (ms)',
+  ];
+
+  const rows = report.discoveredDevices.map((d) => {
+    const openPortsStr =
+      d.openPorts.length > 0
+        ? d.openPorts.join(',')
+        : d.portDetails.length > 0
+        ? 'None detected'
+        : 'Not scanned';
+
+    const portStatusStr =
+      d.portDetails.length > 0
+        ? d.portDetails.map((p) => `${p.port}:${p.state}`).join(', ')
+        : 'Not scanned';
+
+    return [
+      `"${d.ipAddress}"`,
+      `"${d.macAddress || 'N/A (L3 only)'}"`,
+      `"${d.vendor || 'Unknown'}"`,
+      `"${d.hostname || 'Unresolved'}"`,
+      `"${openPortsStr}"`,
+      `"${portStatusStr}"`,
+      `"${d.osMatch}"`,
+      `"${(d.evidence || '').replace(/"/g, '""')}"`,
+      `"${d.latencyMs !== null ? d.latencyMs : ''}"`,
+    ];
+  });
 
   return [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
 }

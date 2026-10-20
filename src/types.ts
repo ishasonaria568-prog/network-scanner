@@ -1,9 +1,10 @@
 export interface PortFinding {
   port: number;
   service: string;
-  state: 'open' | 'closed' | 'filtered';
+  state: 'open' | 'closed' | 'timeout' | 'error' | 'not_scanned';
   banner?: string | null;
   responseTimeMs?: number | null;
+  errorMessage?: string | null;
 }
 
 export interface DiscoveredDevice {
@@ -13,6 +14,7 @@ export interface DiscoveredDevice {
   vendor: string | null;
   openPorts: number[];
   portDetails: PortFinding[];
+  portScanStatus?: string;
   osMatch: string;
   evidence: string | null;
   latencyMs: number | null;
@@ -27,6 +29,8 @@ export interface ScanReport {
   status: 'running' | 'completed' | 'partial' | 'failed';
   durationSeconds: number;
   totalHosts: number;
+  requestedPorts?: number[];
+  timeoutSec?: number;
   discoveredDevices: DiscoveredDevice[];
   errors: string[];
 }

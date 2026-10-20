@@ -1,7 +1,8 @@
-"""Command-Line Interface for Network Scanner.
+"""Command-Line Interface for Network Discovery & Security Inventory.
 
-Engineered for Kali Linux and standard Linux terminal environments.
+Engineered for Kali Linux and Linux terminal environments.
 Supports real ARP discovery, TCP connect probing, reverse DNS, and formatted exports.
+Built by Isha Sonaria.
 """
 
 from __future__ import annotations
@@ -48,37 +49,68 @@ def print_banner() -> None:
 ██║╚██╗██║██╔══╝     ██║   ╚════██║██║     ██╔══██║██║╚██╗██║██║╚██╗██║██╔══╝  ██╔══██╗
 ██║ ╚████║███████╗   ██║   ███████║╚██████╗██║  ██║██║ ╚████║██║ ╚████║███████╗██║  ██║
 ╚═╝  ╚═══╝╚══════╝   ╚═╝   ╚══════╝ ╚═════╝╚═╝  ╚═╝╚═╝  ╚═══╝╚═╝  ╚═══╝╚══════╝╚═╝  ╚═╝{RESET}
-{GRAY}Network Discovery & Security Inventory · Built by Isha Sonaria{RESET}
-{GRAY}GitHub: https://github.com/ishasonaria568-prog{RESET}
+{BOLD}Network Discovery & Security Inventory{RESET} · Built by {BOLD}Isha Sonaria{RESET}
+{GRAY}GitHub: https://github.com/ishasonaria568-prog · Portfolio: https://isha-sonaria-cybersecurity-portfoli.vercel.app/{RESET}
 """
     sys.stderr.write(banner)
 
 
+def format_port_status_colored(device: DiscoveredDevice) -> str:
+    """Format individual port states with readable terminal colors."""
+    if not device.port_details:
+        return f"{GRAY}Not scanned{RESET}"
+
+    parts = []
+    for p in sorted(device.port_details, key=lambda x: x.port):
+        if p.state == "open":
+            parts.append(f"{GREEN}{p.port}:open{RESET}")
+        elif p.state == "closed":
+            parts.append(f"{GRAY}{p.port}:closed{RESET}")
+        elif p.state == "timeout":
+            parts.append(f"{YELLOW}{p.port}:timeout{RESET}")
+        else:
+            parts.append(f"{RED}{p.port}:error{RESET}")
+
+    return ", ".join(parts)
+
+
 def render_table(report: ScanReport) -> None:
-    """Print results in a clean structured console table."""
+    """Print results in a clean, structured console table with per-port status tracking."""
     devices = report.discovered_devices
 
     print(f"\n{BOLD}{CYAN}=== SCAN RESULTS [{report.target_network}] ==={RESET}")
-    print(f"Method: {report.scan_method.upper()} | Elapsed: {report.duration_seconds:.2f}s | Status: {report.status.upper()}")
+    print(
+        f"Method: {report.scan_method.upper()} | Elapsed: {report.duration_seconds:.2f}s | Status: {report.status.upper()}"
+    )
+    if report.requested_ports:
+        print(f"Requested Ports: {','.join(map(str, report.requested_ports))} (Timeout: {report.timeout_sec}s)")
     print(f"Discovered Hosts: {len(devices)} active / {report.total_hosts} probed\n")
 
     if not devices:
         print(f"{YELLOW}No active responsive devices discovered on {report.target_network}.{RESET}")
         return
 
-    # Column widths
+    # Calculate readable column widths
     ip_w = max(15, max((len(d.ip_address) for d in devices), default=15))
     mac_w = max(17, max((len(d.mac_address or "N/A (L3 only)") for d in devices), default=17))
-    host_w = max(20, max((len(d.hostname or "Unresolved") for d in devices), default=20))
-    ports_w = max(14, max((len(",".join(map(str, d.open_ports))) if d.open_ports else 4 for d in devices), default=14))
-    vendor_w = max(16, max((len(d.vendor or "Unknown") for d in devices), default=16))
+    host_w = max(18, max((len(d.hostname or "Unresolved") for d in devices), default=18))
+    vendor_w = max(15, max((len(d.vendor or "Unknown") for d in devices), default=15))
+
+    # Open ports display
+    open_ports_strings = [d.get_open_ports_summary() for d in devices]
+    open_w = max(18, max((len(s) for s in open_ports_strings), default=18))
+
+    # Port status display width
+    port_status_raw_strings = [d.get_port_status_summary() for d in devices]
+    status_w = max(24, max((len(s) for s in port_status_raw_strings), default=24))
 
     header = (
         f"{BOLD}{'IP ADDRESS':<{ip_w}}  "
         f"{'MAC ADDRESS':<{mac_w}}  "
         f"{'VENDOR':<{vendor_w}}  "
         f"{'HOSTNAME':<{host_w}}  "
-        f"{'OPEN PORTS':<{ports_w}}  "
+        f"{'OPEN PORTS':<{open_w}}  "
+        f"{'PORT STATUS':<{status_w}}  "
         f"{'EST. OS':<18}{RESET}"
     )
     divider = "-" * len(header.replace(BOLD, "").replace(RESET, ""))
@@ -90,15 +122,31 @@ def render_table(report: ScanReport) -> None:
         mac_str = d.mac_address or f"{GRAY}N/A (L3 only){RESET}"
         vendor_str = (d.vendor or "Unknown")[:vendor_w]
         host_str = (d.hostname or "Unresolved")[:host_w]
-        ports_str = (",".join(map(str, d.open_ports)) if d.open_ports else "None")[:ports_w]
+
+        # Open ports label
+        if not d.port_details and not d.open_ports:
+            open_ports_label = f"{GRAY}Not scanned{RESET}"
+        elif d.open_ports:
+            open_ports_label = f"{GREEN}{','.join(map(str, d.open_ports))}{RESET}"
+        else:
+            open_ports_label = f"{YELLOW}None detected{RESET}"
+
+        status_colored = format_port_status_colored(d)
         os_str = (d.os_match or "Unknown")[:18]
+
+        # Calculate padding accounting for ANSI escapes
+        raw_open_len = len(d.get_open_ports_summary())
+        raw_status_len = len(d.get_port_status_summary())
+        open_pad = " " * max(0, open_w - raw_open_len)
+        status_pad = " " * max(0, status_w - raw_status_len)
 
         row = (
             f"{GREEN}{d.ip_address:<{ip_w}}{RESET}  "
             f"{mac_str:<{mac_w}}  "
             f"{vendor_str:<{vendor_w}}  "
             f"{host_str:<{host_w}}  "
-            f"{ports_str:<{ports_w}}  "
+            f"{open_ports_label}{open_pad}  "
+            f"{status_colored}{status_pad}  "
             f"{os_str:<18}"
         )
         print(row)
@@ -142,6 +190,7 @@ def cmd_scan(args: argparse.Namespace) -> int:
     fmt = args.format
     ports_str = args.ports
     scan_mode = args.method
+    grab_banner = getattr(args, "banner", False)
 
     # 1. Validate inputs
     try:
@@ -158,11 +207,10 @@ def cmd_scan(args: argparse.Namespace) -> int:
 
     print_banner()
     print(f"{BOLD}[*] Initiating scan against {network} ({total_hosts} hosts)...{RESET}")
-    print(f"[*] Concurrency: {threads} threads | Timeout: {timeout}s | Requested Ports: {ports if ports else 'None (Discovery only)'}")
+    print(
+        f"[*] Concurrency: {threads} threads | Timeout: {timeout}s | Requested Ports: {ports if ports else 'None (Discovery only)'}"
+    )
 
-    # Determine scanning engine:
-    # If method is explicitly 'arp' or 'auto', try ARP first if on local network and elevated.
-    # If method is explicitly 'tcp', or if ARP fails due to permissions, handle accurately.
     caps = detect_capabilities()
     collector: Optional[ThreadSafeResultCollector] = None
 
@@ -173,6 +221,8 @@ def cmd_scan(args: argparse.Namespace) -> int:
             target_network=str(network),
             scan_method="arp_discovery",
             total_hosts=total_hosts,
+            requested_ports=ports,
+            timeout_sec=timeout,
         )
 
         try:
@@ -184,16 +234,27 @@ def cmd_scan(args: argparse.Namespace) -> int:
                 collector=collector,
             )
 
-            # If user also requested port scanning on discovered devices:
+            # If user also requested port scanning on ARP-discovered devices:
             if ports and discovered:
                 print(f"[*] Probing {len(ports)} ports on {len(discovered)} active hosts...")
                 for dev in discovered:
-                    enriched = scan_host_tcp(dev.ip_address, ports, timeout_sec=min(timeout, 1.0), resolve_dns=False)
+                    enriched = scan_host_tcp(
+                        dev.ip_address,
+                        ports,
+                        timeout_sec=min(timeout, 1.0),
+                        resolve_dns=False,
+                        grab_banner=grab_banner,
+                        is_enrichment=True,
+                    )
                     if enriched:
                         dev.open_ports = enriched.open_ports
                         dev.port_details = enriched.port_details
-                        dev.os_match = enriched.os_match
-                        dev.evidence = enriched.evidence
+                        dev.port_scan_status = enriched.port_scan_status
+                        if enriched.os_match and enriched.os_match != "Unknown":
+                            dev.os_match = enriched.os_match
+                            dev.evidence = enriched.evidence
+                        if enriched.latency_ms is not None and dev.latency_ms is None:
+                            dev.latency_ms = enriched.latency_ms
 
         except PrivilegeError as exc:
             sys.stderr.write(f"\n{RED}[PERMISSION ERROR]{RESET} {exc}\n")
@@ -216,6 +277,8 @@ def cmd_scan(args: argparse.Namespace) -> int:
             target_network=str(network),
             scan_method="tcp_connect",
             total_hosts=total_hosts,
+            requested_ports=effective_ports,
+            timeout_sec=timeout,
         )
 
         try:
@@ -225,6 +288,7 @@ def cmd_scan(args: argparse.Namespace) -> int:
                 threads=threads,
                 timeout_sec=timeout,
                 resolve_dns=not args.no_dns,
+                grab_banner=grab_banner,
                 collector=collector,
             )
         except Exception as exc:
@@ -267,7 +331,7 @@ def build_parser() -> argparse.ArgumentParser:
     """Build command line argument parser."""
     parser = argparse.ArgumentParser(
         prog="network_scanner",
-        description="Production-Ready Network Discovery & Inventory Scanner · Built by Isha Sonaria",
+        description="Network Discovery & Security Inventory · Built by Isha Sonaria",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
@@ -284,7 +348,7 @@ Examples:
   python -m network_scanner capabilities
 
 Branding:
-  Built by Isha Sonaria
+  Network Discovery & Security Inventory · Built by Isha Sonaria
   GitHub: https://github.com/ishasonaria568-prog
   Portfolio: https://isha-sonaria-cybersecurity-portfoli.vercel.app/
         """,
@@ -295,12 +359,14 @@ Branding:
     # 'scan' command
     scan_parser = subparsers.add_parser("scan", help="Scan a target IP or CIDR subnet")
     scan_parser.add_argument(
-        "--network", "-n",
+        "--network",
+        "-n",
         required=True,
         help="Target IPv4 address or CIDR range (e.g. 192.168.1.0/24)",
     )
     scan_parser.add_argument(
-        "--threads", "-t",
+        "--threads",
+        "-t",
         type=int,
         default=30,
         help="Number of concurrent worker threads (default: 30, max: 200)",
@@ -312,25 +378,29 @@ Branding:
         help="Response timeout in seconds (default: 1.5)",
     )
     scan_parser.add_argument(
-        "--ports", "-p",
+        "--ports",
+        "-p",
         type=str,
         default=None,
         help="Optional comma-separated list or range of ports to probe (e.g. 22,80,443 or 80-88)",
     )
     scan_parser.add_argument(
-        "--method", "-m",
+        "--method",
+        "-m",
         choices=["auto", "arp", "tcp"],
         default="auto",
         help="Scanning method (auto: prefers ARP if elevated, else TCP connect)",
     )
     scan_parser.add_argument(
-        "--format", "-f",
+        "--format",
+        "-f",
         choices=["table", "json", "csv"],
         default="table",
         help="Output presentation format (default: table)",
     )
     scan_parser.add_argument(
-        "--output", "-o",
+        "--output",
+        "-o",
         type=str,
         default=None,
         help="File path to save scan results",
@@ -339,6 +409,11 @@ Branding:
         "--no-dns",
         action="store_true",
         help="Disable reverse DNS hostname resolution",
+    )
+    scan_parser.add_argument(
+        "--banner",
+        action="store_true",
+        help="Attempt optional non-destructive service banner grab on open ports",
     )
 
     # 'capabilities' command

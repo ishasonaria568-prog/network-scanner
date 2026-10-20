@@ -141,11 +141,15 @@ class ScannerAgent:
             self.submit_results(job_id, target, method, error=err_msg)
             return
 
+        ports_list = parse_ports(",".join(map(str, ports_val)) if isinstance(ports_val, list) else str(ports_val)) if ports_val else []
+
         collector = ThreadSafeResultCollector(
             scan_id=job_id,
             target_network=str(network),
             scan_method=method,
             total_hosts=len(host_list),
+            requested_ports=ports_list,
+            timeout_sec=timeout,
         )
 
         try:
@@ -162,22 +166,29 @@ class ScannerAgent:
                     collector=collector,
                 )
 
-                if ports_val and discovered:
-                    ports = parse_ports(",".join(map(str, ports_val)) if isinstance(ports_val, list) else str(ports_val))
+                if ports_list and discovered:
                     for dev in discovered:
-                        enriched = scan_host_tcp(dev.ip_address, ports, timeout_sec=min(timeout, 1.0), resolve_dns=False)
+                        enriched = scan_host_tcp(
+                            dev.ip_address,
+                            ports_list,
+                            timeout_sec=min(timeout, 1.0),
+                            resolve_dns=False,
+                            is_enrichment=True,
+                        )
                         if enriched:
                             dev.open_ports = enriched.open_ports
                             dev.port_details = enriched.port_details
-                            dev.os_match = enriched.os_match
-                            dev.evidence = enriched.evidence
+                            dev.port_scan_status = enriched.port_scan_status
+                            if enriched.os_match and enriched.os_match != "Unknown":
+                                dev.os_match = enriched.os_match
+                                dev.evidence = enriched.evidence
+                            if enriched.latency_ms is not None and dev.latency_ms is None:
+                                dev.latency_ms = enriched.latency_ms
             else:
-                ports = parse_ports(",".join(map(str, ports_val)) if isinstance(ports_val, list) else str(ports_val))
-                if not ports:
-                    ports = [80, 443, 22, 445, 8080]
+                effective_ports = ports_list if ports_list else [80, 443, 22, 445, 8080]
                 run_tcp_scan(
                     host_list=host_list,
-                    ports=ports,
+                    ports=effective_ports,
                     threads=30,
                     timeout_sec=timeout,
                     resolve_dns=True,

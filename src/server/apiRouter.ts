@@ -141,40 +141,42 @@ apiRouter.post('/scans', async (req: Request, res: Response) => {
       await Promise.all(
         chunk.map(async (ip) => {
           try {
-            const openPortFindings = [];
+            const allPortFindings: any[] = [];
+            const openPorts: number[] = [];
             const latencies: number[] = [];
             const banners: string[] = [];
 
             for (const p of portList) {
               const probeRes = await probeTcpPort(ip, p, timeout);
-              if (probeRes.isOpen) {
-                if (probeRes.latencyMs !== null) latencies.push(probeRes.latencyMs);
+              allPortFindings.push(probeRes);
+
+              if (probeRes.state === 'open') {
+                openPorts.push(p);
+                if (probeRes.responseTimeMs !== null && probeRes.responseTimeMs !== undefined) {
+                  latencies.push(probeRes.responseTimeMs);
+                }
                 if (probeRes.banner) banners.push(probeRes.banner);
-                openPortFindings.push({
-                  port: p,
-                  service: (COMMON_SERVICES as any)[p] || 'unknown',
-                  state: 'open' as const,
-                  banner: probeRes.banner,
-                  responseTimeMs: probeRes.latencyMs,
-                });
+              } else if (probeRes.state === 'closed' && probeRes.responseTimeMs !== null && probeRes.responseTimeMs !== undefined) {
+                latencies.push(probeRes.responseTimeMs);
               }
             }
 
-            if (openPortFindings.length > 0) {
+            // In TCP discovery mode, register host if at least one port is open
+            if (openPorts.length > 0) {
               const hostname = await resolveReverseDns(ip);
-              const avgLatency = latencies.length > 0 ? Math.round(latencies.reduce((a, b) => a + b, 0) / latencies.length) : null;
-              const { osMatch, evidence } = evaluateOsSignature(
-                openPortFindings.map((f) => f.port),
-                banners
-              );
+              const avgLatency =
+                latencies.length > 0
+                  ? Math.round(latencies.reduce((a, b) => a + b, 0) / latencies.length)
+                  : null;
+              const { osMatch, evidence } = evaluateOsSignature(openPorts, banners);
 
               discoveredDevices.push({
                 ipAddress: ip,
                 macAddress: null, // Remote Layer 3 TCP cannot determine physical MAC
                 hostname,
                 vendor: null,
-                openPorts: openPortFindings.map((f) => f.port),
-                portDetails: openPortFindings,
+                openPorts: openPorts.sort((a, b) => a - b),
+                portDetails: allPortFindings.sort((a, b) => a.port - b.port),
                 osMatch,
                 evidence,
                 latencyMs: avgLatency,
@@ -199,6 +201,8 @@ apiRouter.post('/scans', async (req: Request, res: Response) => {
       status: errors.length > 0 && discoveredDevices.length === 0 ? 'failed' : errors.length > 0 ? 'partial' : 'completed',
       durationSeconds,
       totalHosts: hosts.length,
+      requestedPorts: portList,
+      timeoutSec: timeout / 1000,
       discoveredDevices,
       errors,
     };

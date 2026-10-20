@@ -105,7 +105,7 @@ export const DeviceDetailModal: React.FC<DeviceDetailModalProps> = ({ device, on
 
             {device.portDetails.length === 0 ? (
               <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl text-center text-xs text-slate-500">
-                No open TCP ports detected or tested on this host.
+                No ports tested on this host (Discovery only scan).
               </div>
             ) : (
               <div className="border border-slate-200 rounded-xl overflow-hidden bg-white">
@@ -120,19 +120,42 @@ export const DeviceDetailModal: React.FC<DeviceDetailModalProps> = ({ device, on
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 font-mono">
-                    {device.portDetails.map((p) => (
-                      <tr key={p.port} className="hover:bg-slate-50">
-                        <td className="py-2.5 px-3 font-semibold text-blue-700">{p.port}</td>
-                        <td className="py-2.5 px-3 text-slate-800 font-sans">{p.service}</td>
-                        <td className="py-2.5 px-3 text-emerald-700 font-medium">{p.state}</td>
-                        <td className="py-2.5 px-3 text-slate-600">
-                          {p.responseTimeMs !== null ? `${p.responseTimeMs} ms` : '—'}
-                        </td>
-                        <td className="py-2.5 px-3 text-slate-500 text-[11px] truncate max-w-xs font-sans">
-                          {p.banner || <span className="text-slate-400 italic">None</span>}
-                        </td>
-                      </tr>
-                    ))}
+                    {device.portDetails.map((p) => {
+                      let stateBadgeClass = 'bg-slate-100 text-slate-700 border-slate-200';
+                      if (p.state === 'open') {
+                        stateBadgeClass = 'bg-emerald-50 text-emerald-800 border-emerald-200';
+                      } else if (p.state === 'closed') {
+                        stateBadgeClass = 'bg-slate-100 text-slate-700 border-slate-200';
+                      } else if (p.state === 'timeout') {
+                        stateBadgeClass = 'bg-amber-50 text-amber-800 border-amber-200';
+                      } else if (p.state === 'error') {
+                        stateBadgeClass = 'bg-red-50 text-red-800 border-red-200';
+                      }
+
+                      return (
+                        <tr key={p.port} className="hover:bg-slate-50">
+                          <td className="py-2.5 px-3 font-semibold text-blue-700">{p.port}</td>
+                          <td className="py-2.5 px-3 text-slate-800 font-sans">{p.service}</td>
+                          <td className="py-2.5 px-3">
+                            <span className={`px-1.5 py-0.5 border rounded text-[11px] font-medium capitalize ${stateBadgeClass}`}>
+                              {p.state}
+                            </span>
+                          </td>
+                          <td className="py-2.5 px-3 text-slate-600">
+                            {p.responseTimeMs !== null && p.responseTimeMs !== undefined ? `${p.responseTimeMs} ms` : '—'}
+                          </td>
+                          <td className="py-2.5 px-3 text-slate-500 text-[11px] font-sans">
+                            {p.banner ? (
+                              <span className="truncate max-w-xs block text-slate-700">{p.banner}</span>
+                            ) : p.errorMessage ? (
+                              <span className="text-red-600 truncate max-w-xs block">{p.errorMessage}</span>
+                            ) : (
+                              <span className="text-slate-400 italic">None</span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>

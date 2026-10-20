@@ -31,25 +31,22 @@ export const Navbar: React.FC<NavbarProps> = ({
   ];
 
   return (
-    <header className="sticky top-0 z-40 w-full border-b border-slate-200/90 bg-white/95 backdrop-blur-sm">
+    <header className="sticky top-0 z-40 w-full border-b border-slate-800/80 bg-[#0f1523]/95 backdrop-blur-md">
       <div className="max-w-7xl mx-auto px-4 sm:px-6">
         <div className="flex items-center justify-between h-16 gap-4">
-          {/* Brand and Subtitle */}
+          {/* Brand & Subtitle */}
           <div className="flex items-center gap-3 shrink-0">
-            <div className="w-9 h-9 rounded-lg bg-blue-50 border border-blue-200/80 flex items-center justify-center text-blue-600 shadow-xs">
-              <Shield className="w-5 h-5 text-blue-600" />
+            <div className="w-9 h-9 rounded-lg bg-rose-950/60 border border-rose-500/30 flex items-center justify-center text-rose-500 shadow-sm">
+              <Shield className="w-5 h-5 text-rose-500" />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <span className="text-base font-bold text-slate-900 tracking-tight">
-                  Network Scanner
-                </span>
-                <span className="text-xs text-slate-600 font-medium">
-                  by Isha Sonaria
+                <span className="text-sm sm:text-base font-bold text-white tracking-tight">
+                  Network Discovery &amp; Security Inventory
                 </span>
               </div>
-              <p className="text-xs text-slate-500 hidden sm:block">
-                Discover and inspect devices on authorized networks
+              <p className="text-[11px] text-slate-400 hidden sm:block">
+                Built by Isha Sonaria · Authorized network inventory &amp; port reconnaissance
               </p>
             </div>
           </div>
@@ -62,15 +59,15 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <button
                   key={item.id}
                   onClick={() => setActiveTab(item.id)}
-                  className={`flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-medium rounded-md transition-colors whitespace-nowrap ${
+                  className={`flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-medium rounded-lg transition-colors whitespace-nowrap ${
                     isActive
-                      ? 'bg-blue-50 text-blue-700 font-semibold'
-                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/70'
+                      ? 'bg-rose-950/40 text-rose-400 border border-rose-500/30 font-semibold'
+                      : 'text-slate-300 hover:text-white hover:bg-slate-800/60'
                   }`}
                 >
                   <span>{item.label}</span>
                   {item.badge && (
-                    <span className="ml-0.5 px-1.5 py-0.2 text-[10px] font-mono rounded-full bg-blue-100 text-blue-700 font-bold">
+                    <span className="ml-0.5 px-1.5 py-0.2 text-[10px] font-mono rounded-full bg-rose-900/60 text-rose-300 font-bold border border-rose-700/50">
                       {item.badge}
                     </span>
                   )}
@@ -85,8 +82,8 @@ export const Navbar: React.FC<NavbarProps> = ({
             <div
               className={`hidden sm:flex items-center gap-2 px-2.5 py-1 rounded-full text-xs font-medium border ${
                 isAgentOnline
-                  ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
-                  : 'bg-slate-100 text-slate-700 border-slate-200'
+                  ? 'bg-emerald-950/40 text-emerald-400 border-emerald-800/60'
+                  : 'bg-slate-900/60 text-slate-300 border-slate-800'
               }`}
               title={
                 isAgentOnline
@@ -98,7 +95,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             >
               <span
                 className={`w-2 h-2 rounded-full ${
-                  isAgentOnline ? 'bg-emerald-500' : 'bg-slate-400'
+                  isAgentOnline ? 'bg-emerald-500 animate-pulse' : 'bg-slate-500'
                 }`}
               />
               <span className="font-sans text-[11px]">
@@ -107,13 +104,13 @@ export const Navbar: React.FC<NavbarProps> = ({
             </div>
 
             {/* Author Profile Links */}
-            <div className="flex items-center gap-1.5 text-slate-500 border-l border-slate-200 pl-3">
+            <div className="flex items-center gap-1.5 text-slate-400 border-l border-slate-800 pl-3">
               <a
                 href="https://github.com/ishasonaria568-prog"
                 target="_blank"
                 rel="noopener noreferrer"
                 title="GitHub: ishasonaria568-prog"
-                className="p-1.5 text-slate-500 hover:text-slate-900 hover:bg-slate-100 rounded-md transition-colors"
+                className="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-slate-800/60 rounded-md transition-colors"
               >
                 <Github className="w-4 h-4" />
               </a>
@@ -122,7 +119,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 target="_blank"
                 rel="noopener noreferrer"
                 title="Portfolio: Isha Sonaria"
-                className="p-1.5 text-slate-500 hover:text-slate-900 hover:bg-slate-100 rounded-md transition-colors"
+                className="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-slate-800/60 rounded-md transition-colors"
               >
                 <Globe className="w-4 h-4" />
               </a>
@@ -131,7 +128,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             {/* Mobile Menu Button */}
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="lg:hidden p-1.5 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-md"
+              className="lg:hidden p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-md"
             >
               {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
             </button>
@@ -140,7 +137,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
         {/* Mobile Dropdown Navigation */}
         {mobileMenuOpen && (
-          <div className="lg:hidden py-3 border-t border-slate-200 space-y-1">
+          <div className="lg:hidden py-3 border-t border-slate-800 space-y-1">
             {navLinks.map((item) => {
               const isActive = activeTab === item.id;
               return (
@@ -152,13 +149,13 @@ export const Navbar: React.FC<NavbarProps> = ({
                   }}
                   className={`w-full flex items-center justify-between px-3 py-2 text-xs font-medium rounded-md text-left ${
                     isActive
-                      ? 'bg-blue-50 text-blue-700 font-semibold'
-                      : 'text-slate-600 hover:bg-slate-100'
+                      ? 'bg-rose-950/40 text-rose-400 font-semibold border border-rose-500/30'
+                      : 'text-slate-300 hover:bg-slate-800/60'
                   }`}
                 >
                   <span>{item.label}</span>
                   {item.badge && (
-                    <span className="px-1.5 py-0.2 text-[10px] font-mono rounded-full bg-blue-100 text-blue-700">
+                    <span className="px-1.5 py-0.2 text-[10px] font-mono rounded-full bg-rose-900/60 text-rose-300 font-bold border border-rose-700/50">
                       {item.badge}
                     </span>
                   )}

@@ -275,18 +275,22 @@ export const ResultsTable: React.FC<ResultsTableProps> = ({
                   {/* Open Ports */}
                   <td className="py-3 px-4">
                     {device.openPorts.length > 0 ? (
-                      <div className="flex flex-wrap gap-1 max-w-xs">
+                      <div className="flex flex-wrap gap-1 max-w-xs items-center">
                         {device.openPorts.map((p) => (
                           <span
                             key={p}
-                            className="px-1.5 py-0.5 bg-slate-100 border border-slate-200 rounded font-mono text-[11px] text-slate-800 tabular-nums"
+                            className="px-1.5 py-0.5 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded font-mono text-[11px] font-medium tabular-nums"
                           >
                             {p}
                           </span>
                         ))}
                       </div>
+                    ) : device.portDetails && device.portDetails.length > 0 ? (
+                      <span className="text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded text-[11px] font-medium inline-block">
+                        None detected
+                      </span>
                     ) : (
-                      <span className="text-slate-400 text-[11px]">None detected</span>
+                      <span className="text-slate-400 text-[11px] italic">Not scanned</span>
                     )}
                   </td>
 
