@@ -1,0 +1,6 @@
+{
+  "name": "Network Scanner — Built by Isha Sonaria",
+  "description": "Production-ready network discovery and inventory scanner with CLI mode for Kali Linux and a modern SOC web GUI deployable on Vercel.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

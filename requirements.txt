@@ -1,0 +1,6 @@
+# Core network scanning dependencies
+scapy>=2.5.0
+requests>=2.31.0
+
+# Optional test & lint dependencies
+pytest>=7.4.0

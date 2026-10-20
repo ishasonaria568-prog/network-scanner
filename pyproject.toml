@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "network-scanner"
+version = "1.0.0"
+description = "Production-ready network discovery and inventory scanner with CLI and agent modes."
+readme = "README.md"
+requires-python = ">=3.9"
+authors = [
+    { name = "Isha Sonaria", email = "ishasonaria568@gmail.com" }
+]
+keywords = ["network-scanner", "arp", "kali-linux", "cybersecurity", "reconnaissance", "soc"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Topic :: System :: Networking :: Monitoring",
+    "Topic :: Security",
+]
+dependencies = [
+    "scapy>=2.5.0",
+    "requests>=2.31.0",
+]
+
+[project.scripts]
+network-scanner = "network_scanner.cli:main"
+scanner-agent = "agent.client:main"
